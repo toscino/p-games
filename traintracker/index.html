@@ -185,15 +185,17 @@
         async function fetchLiveTimes() {
             lastFetchTime = Date.now();
             
-            // Switch to allorigins.win as it returns JSON and handles CORS better in sandboxed iframes
-            const targetUrl = 'https://metratracker.com/bustime/wireless/html/eta.jsp?route=MD-N&originstop=Chicago+Union+Station&destinationstop=Edgebrook&id=CUS&destinationid=EDGEBROOK&direction=OUTBOUND&showAllBusses=off';
-            const proxyUrl = 'https://api.allorigins.win/get?url=' + encodeURIComponent(targetUrl);
+            // Revert to corsproxy.io as it is more robust for GitHub Pages
+            // Added cache buster (&t=) to prevent stale responses
+            const targetUrl = 'https://metratracker.com/bustime/wireless/html/eta.jsp?route=MD-N&originstop=Chicago+Union+Station&destinationstop=Edgebrook&id=CUS&destinationid=EDGEBROOK&direction=OUTBOUND&showAllBusses=off&t=' + Date.now();
+            const proxyUrl = 'https://corsproxy.io/?url=' + encodeURIComponent(targetUrl);
             
             try {
                 const response = await fetch(proxyUrl);
                 if (!response.ok) throw new Error('Network response was not ok');
-                const data = await response.json(); // allorigins returns JSON with 'contents'
-                const text = data.contents;
+                
+                // corsproxy.io returns the raw text (HTML), not a JSON object
+                const text = await response.text(); 
                 
                 const timeRegex = /(\d{1,2}:\d{2}\s+(?:AM|PM))/gi;
                 const parser = new DOMParser();
