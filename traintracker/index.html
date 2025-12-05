@@ -123,7 +123,7 @@
         <div class="p-4 bg-gray-950 text-center border-t border-gray-800">
             <p class="text-xs text-gray-600" id="schedule-type">Initializing...</p>
             <p class="text-[10px] text-gray-700 mt-1" id="footer-note">Waiting for connection...</p>
-            <p class="text-[9px] text-gray-800 mt-2 font-mono">v1.1</p>
+            <p class="text-[9px] text-gray-800 mt-2 font-mono">v1.2</p>
         </div>
     </div>
 
@@ -182,50 +182,71 @@
             return Math.floor((target - now) / 60000);
         }
 
+        // --- PARSER ---
+        function parseHtmlForTimes(htmlText) {
+            const timeRegex = /(\d{1,2}:\d{2}\s+(?:AM|PM))/gi;
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(htmlText, 'text/html');
+            const pageText = doc.body.innerText || "";
+            
+            const lines = pageText.split('\n');
+            const foundTimes = [];
+            
+            lines.forEach(line => {
+                if (line.includes("To Edgebrook") || line.includes("To Fox Lake") || line.includes("To Healy") || line.includes("To Lake Forest")) { 
+                    const match = line.match(timeRegex);
+                    if (match) {
+                        foundTimes.push(convert12to24(match[0]));
+                    }
+                }
+            });
+            
+            return { times: foundTimes, hasNoService: pageText.includes("No service") };
+        }
+
         // --- LIVE DATA FETCHING ---
         async function fetchLiveTimes() {
             lastFetchTime = Date.now();
-            
-            // CORRECTED PROXY SYNTAX: Append target URL directly after "?"
             const targetUrl = 'https://metratracker.com/bustime/wireless/html/eta.jsp?route=MD-N&originstop=Chicago+Union+Station&destinationstop=Edgebrook&id=CUS&destinationid=EDGEBROOK&direction=OUTBOUND&showAllBusses=off&t=' + Date.now();
-            // Note: We intentionally DO NOT use 'url=' param here, as corsproxy.io standard usage is ?<url>
-            const proxyUrl = 'https://corsproxy.io/?' + encodeURIComponent(targetUrl);
             
+            // Attempt 1: CorsProxy.io
             try {
+                console.log("Attempting Primary Proxy...");
+                const proxyUrl = 'https://corsproxy.io/?' + encodeURIComponent(targetUrl);
                 const response = await fetch(proxyUrl);
-                if (!response.ok) throw new Error('Network response was not ok');
-                
+                if (!response.ok) throw new Error('Primary proxy failed');
                 const text = await response.text();
                 
-                const timeRegex = /(\d{1,2}:\d{2}\s+(?:AM|PM))/gi;
-                const parser = new DOMParser();
-                const doc = parser.parseFromString(text, 'text/html');
-                const pageText = doc.body.innerText || "";
-                
-                const lines = pageText.split('\n');
-                const foundTimes = [];
-                
-                lines.forEach(line => {
-                    // Check for destination keywords
-                    if (line.includes("To Edgebrook") || line.includes("To Fox Lake") || line.includes("To Healy") || line.includes("To Lake Forest")) { 
-                        const match = line.match(timeRegex);
-                        if (match) {
-                            foundTimes.push(convert12to24(match[0]));
-                        }
-                    }
-                });
-
-                if (foundTimes.length > 0) {
-                    liveData = foundTimes;
+                const result = parseHtmlForTimes(text);
+                if (result.times.length > 0 || result.hasNoService) {
+                    liveData = result.times;
                     isUsingLive = true;
-                } else {
-                    if (pageText.includes("No service")) {
-                         liveData = [];
-                         isUsingLive = true;
-                    }
+                    console.log("Primary Proxy Success");
+                    return; // Success
                 }
             } catch (error) {
-                console.error("Fetch failed, staying on schedule:", error);
+                console.warn("Primary proxy failed, trying backup...", error);
+            }
+
+            // Attempt 2: AllOrigins (Backup)
+            try {
+                console.log("Attempting Backup Proxy...");
+                const proxyUrl = 'https://api.allorigins.win/get?url=' + encodeURIComponent(targetUrl);
+                const response = await fetch(proxyUrl);
+                if (!response.ok) throw new Error('Backup proxy failed');
+                const data = await response.json();
+                const text = data.contents;
+
+                const result = parseHtmlForTimes(text);
+                if (result.times.length > 0 || result.hasNoService) {
+                    liveData = result.times;
+                    isUsingLive = true;
+                    console.log("Backup Proxy Success");
+                    return; // Success
+                }
+            } catch (error) {
+                console.error("All proxies failed, staying on schedule:", error);
+                // isUsingLive remains false
             }
         }
 
