@@ -1,207 +1,26 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Next Train: Union Station to Edgebrook</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap');
-        body { font-family: 'Inter', sans-serif; }
-        .train-card { transition: transform 0.2s; }
-        .train-card:active { transform: scale(0.98); }
-        
-        .pulse-ring {
-            box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7);
-            animation: pulse-blue 2s infinite;
-        }
-        @keyframes pulse-blue {
-            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7); }
-            70% { transform: scale(1); box-shadow: 0 0 0 10px rgba(59, 130, 246, 0); }
-            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); }
-        }
-
-        /* Status Dot Pulse */
-        .live-dot {
-            height: 8px;
-            width: 8px;
-            background-color: #4ade80;
-            border-radius: 50%;
-            display: inline-block;
-            box-shadow: 0 0 0 0 rgba(74, 222, 128, 0.7);
-            animation: pulse-green 2s infinite;
-        }
-        @keyframes pulse-green {
-            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(74, 222, 128, 0.7); }
-            70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(74, 222, 128, 0); }
-            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(74, 222, 128, 0); }
-        }
-        
-        /* Loading spinner */
-        .loader {
-            border: 2px solid #374151;
-            border-top: 2px solid #3b82f6;
-            border-radius: 50%;
-            width: 14px;
-            height: 14px;
-            animation: spin 1s linear infinite;
-        }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-    </style>
-</head>
-<body class="bg-gray-900 text-white min-h-screen flex flex-col items-center justify-center p-4">
-
-    <!-- Main Container -->
-    <div class="w-full max-w-md bg-gray-800 rounded-3xl shadow-2xl overflow-hidden border border-gray-700 relative">
-        
-        <!-- Header -->
-        <div class="bg-gray-800 p-6 border-b border-gray-700 flex justify-between items-start">
-            <div>
-                <h1 class="text-xs font-bold tracking-widest text-gray-400 uppercase mb-1">Metra MD-N</h1>
-                <h2 class="text-xl font-bold text-white flex items-center gap-2">
-                    Union St. <i class="fa-solid fa-arrow-right text-sm text-gray-500"></i> Edgebrook
-                </h2>
-            </div>
-            <!-- Live Tracker Link -->
-            <a href="https://metratracker.com/bustime/wireless/html/eta.jsp?route=MD-N&originstop=Chicago+Union+Station&destinationstop=Edgebrook&id=CUS&destinationid=EDGEBROOK&direction=OUTBOUND&showAllBusses=off" target="_blank" 
-               id="live-view-btn"
-               class="group flex flex-col items-end gap-1 text-right">
-                <div id="live-view-pill" class="flex items-center gap-2 bg-blue-600/20 hover:bg-blue-600/30 border border-blue-500/30 px-3 py-1.5 rounded-full transition-all">
-                    <div class="w-2 h-2 bg-blue-500 rounded-full"></div>
-                    <span class="text-xs font-bold text-blue-400 group-hover:text-blue-300">Verify Live</span>
-                    <i class="fa-solid fa-external-link-alt text-[10px] text-blue-500"></i>
-                </div>
-            </a>
-        </div>
-
-        <!-- Hero Section: Next Train -->
-        <div class="p-8 text-center bg-gradient-to-b from-gray-800 to-gray-900 relative">
-            
-            <!-- Explicit Status Indicator (Always Visible) -->
-            <div id="hero-status-indicator" class="absolute top-4 left-0 right-0 flex justify-center transition-all duration-500">
-                 <!-- Default State: Loading -->
-                 <div class="flex items-center gap-2 bg-gray-700/50 border border-gray-600 px-3 py-1 rounded-full">
-                    <div class="loader"></div>
-                    <span class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Connecting...</span>
-                 </div>
-            </div>
-
-            <p id="status-message" class="text-gray-400 text-sm mb-2 font-medium mt-6">Loading...</p>
-            
-            <div id="countdown-container" class="mb-6 relative z-10">
-                <span id="time-remaining" class="text-6xl font-extrabold tracking-tight text-white drop-shadow-lg">--</span>
-                <span class="text-xl text-gray-500 font-normal">min</span>
-            </div>
-
-            <div class="inline-flex items-center justify-center gap-3 bg-gray-700/50 px-6 py-3 rounded-2xl border border-gray-600/50 backdrop-blur-sm">
-                <i class="fa-regular fa-clock text-blue-400"></i>
-                <span id="departure-time" class="text-2xl font-bold text-blue-100 tracking-wide">--:--</span>
-            </div>
-        </div>
-
-        <!-- Schedule List -->
-        <div class="bg-gray-900 px-6 py-6">
-            <h3 class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-4 flex justify-between items-center">
-                <span>Upcoming Trains</span>
-                <span id="data-source-badge" class="text-[10px] bg-gray-800 px-2 py-0.5 rounded text-gray-500 border border-gray-700 flex items-center gap-1">
-                    <div class="loader"></div> Checking...
-                </span>
-            </h3>
-            <div id="schedule-list" class="space-y-3">
-                <!-- Trains injected here -->
-                <div class="animate-pulse flex space-x-4">
-                    <div class="flex-1 space-y-4 py-1">
-                        <div class="h-12 bg-gray-700 rounded-xl"></div>
-                        <div class="h-12 bg-gray-700 rounded-xl"></div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Footer -->
-        <div class="p-4 bg-gray-950 text-center border-t border-gray-800">
-            <p class="text-xs text-gray-600" id="schedule-type">Initializing...</p>
-            <p class="text-[10px] text-gray-700 mt-1" id="footer-note">Waiting for connection...</p>
-            <p class="text-[9px] text-gray-800 mt-2 font-mono">v1.2</p>
-        </div>
-    </div>
-
-    <script>
-        // --- BACKUP SCHEDULE (24h format) ---
-        const weekdaySchedule = [
-            "00:32", "06:25", "06:48", "07:05", "07:32", "08:32", "09:32", "10:32", "11:32", 
-            "12:32", "13:32", "14:23", "15:30", "15:55", "16:00", "16:23", "16:28", 
-            "16:53", "17:13", "17:18", "17:43", "17:52", "18:32", "19:32", "20:32", 
-            "21:45", "23:00", "24:32"
-        ];
-        const weekendSchedule = [
-            "08:35", "10:35", "12:35", "14:35", "15:35", "16:35", "18:35", "20:35", 
-            "22:35", "24:25"
-        ];
-
-        // --- STATE ---
-        let liveData = null;
-        let lastFetchTime = 0;
-        let isUsingLive = false;
-        const REFRESH_INTERVAL_MS = 60000; // 60 seconds
-
-        // --- HELPERS ---
-        function getScheduleForDate(date) {
-            const day = date.getDay();
-            const isWeekend = (day === 0 || day === 6);
-            return {
-                type: isWeekend ? "Weekend Schedule" : "Weekday Schedule",
-                times: isWeekend ? weekendSchedule : weekdaySchedule
-            };
-        }
-
-        function convert12to24(time12h) {
-            const [time, modifier] = time12h.split(' ');
-            let [hours, minutes] = time.split(':');
-            if (hours === '12') hours = '00';
-            if (modifier === 'PM' || modifier === 'pm') hours = parseInt(hours, 10) + 12;
-            return `${hours}:${minutes}`;
-        }
-
-        function formatTime12h(time24) {
-            let [hours, minutes] = time24.split(':').map(Number);
-            let period = 'AM';
-            if (hours >= 24) { hours -= 24; period = 'AM'; }
-            else if (hours >= 12) { period = 'PM'; if (hours > 12) hours -= 12; }
-            else if (hours === 0) { hours = 12; }
-            return `${hours}:${minutes.toString().padStart(2, '0')} ${period}`;
-        }
-
-        function getMinutesUntil(targetTime24, targetDate) {
-            const now = new Date();
-            let [tHours, tMinutes] = targetTime24.split(':').map(Number);
-            const target = new Date(targetDate);
-            if (tHours >= 24) { tHours -= 24; target.setDate(target.getDate() + 1); }
-            target.setHours(tHours, tMinutes, 0, 0);
-            return Math.floor((target - now) / 60000);
-        }
-
-        // --- PARSER ---
+// --- PARSER ---
         function parseHtmlForTimes(htmlText) {
-            const timeRegex = /(\d{1,2}:\d{2}\s+(?:AM|PM))/gi;
+            // New Robust Parser: Scans whole text for "To [Destination] ... [Time]" pattern
+            // \s* = allows any amount of whitespace
+            // .*? = allows junk characters in between (like " ... ")
+            const timeRegex = /To\s+(?:Edgebrook|Fox\s+Lake|Healy|Lake\s+Forest).*?(\d{1,2}:\d{2}\s*[AP]M)/gi;
+            
+            // Create a DOM parser to strip HTML tags safely first
             const parser = new DOMParser();
             const doc = parser.parseFromString(htmlText, 'text/html');
-            const pageText = doc.body.innerText || "";
+            const cleanText = doc.body.innerText.replace(/\s+/g, ' '); // Flatten all whitespace to single spaces
             
-            const lines = pageText.split('\n');
             const foundTimes = [];
+            let match;
             
-            lines.forEach(line => {
-                if (line.includes("To Edgebrook") || line.includes("To Fox Lake") || line.includes("To Healy") || line.includes("To Lake Forest")) { 
-                    const match = line.match(timeRegex);
-                    if (match) {
-                        foundTimes.push(convert12to24(match[0]));
-                    }
+            // Execute regex on the cleaned single-line text
+            while ((match = timeRegex.exec(cleanText)) !== null) {
+                if (match[1]) {
+                    foundTimes.push(convert12to24(match[1]));
                 }
-            });
+            }
             
-            return { times: foundTimes, hasNoService: pageText.includes("No service") };
+            return { times: foundTimes, hasNoService: cleanText.includes("No service") };
         }
 
         // --- LIVE DATA FETCHING ---
@@ -209,44 +28,50 @@
             lastFetchTime = Date.now();
             const targetUrl = 'https://metratracker.com/bustime/wireless/html/eta.jsp?route=MD-N&originstop=Chicago+Union+Station&destinationstop=Edgebrook&id=CUS&destinationid=EDGEBROOK&direction=OUTBOUND&showAllBusses=off&t=' + Date.now();
             
-            // Attempt 1: CorsProxy.io
-            try {
-                console.log("Attempting Primary Proxy...");
-                const proxyUrl = 'https://corsproxy.io/?' + encodeURIComponent(targetUrl);
-                const response = await fetch(proxyUrl);
-                if (!response.ok) throw new Error('Primary proxy failed');
-                const text = await response.text();
-                
-                const result = parseHtmlForTimes(text);
-                if (result.times.length > 0 || result.hasNoService) {
-                    liveData = result.times;
-                    isUsingLive = true;
-                    console.log("Primary Proxy Success");
-                    return; // Success
+            // List of proxies to try in order
+            const proxies = [
+                { name: 'CorsProxy', url: 'https://corsproxy.io/?' + encodeURIComponent(targetUrl), type: 'text' },
+                { name: 'AllOrigins', url: 'https://api.allorigins.win/get?url=' + encodeURIComponent(targetUrl), type: 'json' },
+                { name: 'ThingProxy', url: 'https://thingproxy.freeboard.io/fetch/' + targetUrl, type: 'text' }
+            ];
+
+            let success = false;
+            const debugEl = document.getElementById('footer-note');
+
+            for (const proxy of proxies) {
+                try {
+                    debugEl.innerHTML = `Trying ${proxy.name}...`;
+                    console.log(`Attempting ${proxy.name}...`);
+                    
+                    const response = await fetch(proxy.url);
+                    if (!response.ok) throw new Error('Network error');
+                    
+                    let text = "";
+                    if (proxy.type === 'json') {
+                        const data = await response.json();
+                        text = data.contents;
+                    } else {
+                        text = await response.text();
+                    }
+
+                    const result = parseHtmlForTimes(text);
+                    
+                    if (result.times.length > 0 || result.hasNoService) {
+                        liveData = result.times;
+                        isUsingLive = true;
+                        debugEl.innerHTML = `<span class="text-green-500">● Connected via ${proxy.name}</span>`;
+                        success = true;
+                        break; // Stop trying other proxies
+                    }
+                } catch (error) {
+                    console.warn(`${proxy.name} failed:`, error);
                 }
-            } catch (error) {
-                console.warn("Primary proxy failed, trying backup...", error);
             }
 
-            // Attempt 2: AllOrigins (Backup)
-            try {
-                console.log("Attempting Backup Proxy...");
-                const proxyUrl = 'https://api.allorigins.win/get?url=' + encodeURIComponent(targetUrl);
-                const response = await fetch(proxyUrl);
-                if (!response.ok) throw new Error('Backup proxy failed');
-                const data = await response.json();
-                const text = data.contents;
-
-                const result = parseHtmlForTimes(text);
-                if (result.times.length > 0 || result.hasNoService) {
-                    liveData = result.times;
-                    isUsingLive = true;
-                    console.log("Backup Proxy Success");
-                    return; // Success
-                }
-            } catch (error) {
-                console.error("All proxies failed, staying on schedule:", error);
-                // isUsingLive remains false
+            if (!success) {
+                console.error("All proxies failed.");
+                debugEl.innerHTML = `<span class="text-yellow-600/70">⚠ Connection failed. Using Schedule.</span>`;
+                // Keep isUsingLive as previous state or false
             }
         }
 
@@ -256,7 +81,7 @@
             
             // Check fetch (Every 60s)
             if (Date.now() - lastFetchTime > REFRESH_INTERVAL_MS) {
-                document.getElementById('data-source-badge').innerHTML = `<div class="loader"></div> Updating...`;
+                document.getElementById('data-source-badge').innerHTML = `<div class="loader"></div>`;
                 await fetchLiveTimes();
             }
 
@@ -268,12 +93,15 @@
             
             const heroIndicator = document.getElementById('hero-status-indicator');
             const liveViewPill = document.getElementById('live-view-pill');
+            
+            // If fetchLiveTimes is working, footer note is already set by that function
+            // Only overwrite it here if we are in pure offline mode from start
             const footerNoteEl = document.getElementById('footer-note');
 
             if (isUsingLive && liveData) {
                 // --- LIVE MODE ---
                 timesList = liveData;
-                sourceLabel = `<span class="text-green-400 font-bold"><i class="fa-solid fa-wifi"></i> Live Data</span>`;
+                sourceLabel = `<span class="text-green-400 font-bold"><i class="fa-solid fa-wifi"></i> Live</span>`;
                 scheduleType = "Live Tracker";
                 
                 // Show Green Pill in Hero
@@ -287,15 +115,13 @@
                  liveViewPill.classList.remove('pulse-ring');
                  liveViewPill.classList.remove('bg-blue-600/20');
                  liveViewPill.classList.add('bg-gray-700/50'); 
-                
-                 footerNoteEl.innerHTML = `<span class="text-green-500">● Connected to Metra Real-time Tracker</span>`;
 
                 if (timesList.length === 0) {
                      const tomorrow = new Date(now);
                      tomorrow.setDate(tomorrow.getDate() + 1);
                      const nextDaySchedule = getScheduleForDate(tomorrow);
                      timesList = nextDaySchedule.times;
-                     sourceLabel = `<span class="text-yellow-500"><i class="fa-solid fa-calendar"></i> Sched (Tomorrow)</span>`;
+                     sourceLabel = `<span class="text-yellow-500"><i class="fa-solid fa-calendar"></i> Sched (Tmrw)</span>`;
                      isTomorrow = true;
                      heroIndicator.innerHTML = `
                          <div class="flex items-center gap-2 bg-yellow-900/30 border border-yellow-600/30 px-3 py-1 rounded-full">
@@ -307,7 +133,7 @@
                 // --- SCHEDULE MODE ---
                 const currentSchedule = getScheduleForDate(now);
                 timesList = currentSchedule.times;
-                sourceLabel = `<span class="text-gray-400"><i class="fa-solid fa-calendar"></i> Schedule</span>`;
+                sourceLabel = `<span class="text-gray-400"><i class="fa-solid fa-calendar"></i> Sched</span>`;
                 scheduleType = currentSchedule.type;
                 
                 // Show Gray Pill in Hero
@@ -322,7 +148,10 @@
                 liveViewPill.classList.add('bg-blue-600/20');
                 liveViewPill.classList.remove('bg-gray-700/50');
                 
-                footerNoteEl.innerHTML = `<span class="text-yellow-600/70">⚠ Unable to connect to live tracker. Showing standard schedule.</span>`;
+                // Only set this if we haven't tried fetching yet or failed completely
+                if (footerNoteEl.innerText === "Waiting for connection...") {
+                     footerNoteEl.innerText = "Connecting...";
+                }
             }
 
             // Standardize current time
@@ -434,3 +263,9 @@
     </script>
 </body>
 </html>
+<!-- ... existing code ... -->
+        <!-- Footer -->
+        <div class="p-4 bg-gray-950 text-center border-t border-gray-800">
+            <p class="text-xs text-gray-600" id="schedule-type">Initializing...</p>
+            <p class="text-[10px] text-gray-700 mt-1" id="footer-note">Waiting for connection...</p>
+            <p class="text-[9px] text-gray-800 mt-2 font-mono">v
