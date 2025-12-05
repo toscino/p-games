@@ -101,7 +101,7 @@
         </div>
 
         <!-- Schedule List -->
-        <div class="bg-gray-900 px-6 py-6 max-h-[300px] overflow-y-auto">
+        <div class="bg-gray-900 px-6 py-6">
             <h3 class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-4 flex justify-between items-center">
                 <span>Upcoming Trains</span>
                 <span id="data-source-badge" class="text-[10px] bg-gray-800 px-2 py-0.5 rounded text-gray-500 border border-gray-700 flex items-center gap-1">
@@ -123,6 +123,7 @@
         <div class="p-4 bg-gray-950 text-center border-t border-gray-800">
             <p class="text-xs text-gray-600" id="schedule-type">Initializing...</p>
             <p class="text-[10px] text-gray-700 mt-1" id="footer-note">Waiting for connection...</p>
+            <p class="text-[9px] text-gray-800 mt-2 font-mono">v1.1</p>
         </div>
     </div>
 
@@ -185,17 +186,16 @@
         async function fetchLiveTimes() {
             lastFetchTime = Date.now();
             
-            // Revert to corsproxy.io as it is more robust for GitHub Pages
-            // Added cache buster (&t=) to prevent stale responses
+            // CORRECTED PROXY SYNTAX: Append target URL directly after "?"
             const targetUrl = 'https://metratracker.com/bustime/wireless/html/eta.jsp?route=MD-N&originstop=Chicago+Union+Station&destinationstop=Edgebrook&id=CUS&destinationid=EDGEBROOK&direction=OUTBOUND&showAllBusses=off&t=' + Date.now();
-            const proxyUrl = 'https://corsproxy.io/?url=' + encodeURIComponent(targetUrl);
+            // Note: We intentionally DO NOT use 'url=' param here, as corsproxy.io standard usage is ?<url>
+            const proxyUrl = 'https://corsproxy.io/?' + encodeURIComponent(targetUrl);
             
             try {
                 const response = await fetch(proxyUrl);
                 if (!response.ok) throw new Error('Network response was not ok');
                 
-                // corsproxy.io returns the raw text (HTML), not a JSON object
-                const text = await response.text(); 
+                const text = await response.text();
                 
                 const timeRegex = /(\d{1,2}:\d{2}\s+(?:AM|PM))/gi;
                 const parser = new DOMParser();
